@@ -96,6 +96,8 @@ def run(args, do_early_stopping, stopping_criteria):
     acc_table = OrderedDict()
     auroc_table = OrderedDict()
     auprc_table = OrderedDict()
+    epochs = []
+
     if args.offline_training:  # Non-incremental learning / offline_training / measure the upper-bound performance
         pass
         # task_names = ['All']
@@ -158,7 +160,8 @@ def run(args, do_early_stopping, stopping_criteria):
                 agent.add_valid_output_dim(task_output_space[train_name])
 
             # Learn
-            agent.learn_batch(train_loader, val_loader, do_early_stopping, stopping_criteria)
+            epochs_trained = agent.learn_batch(train_loader, val_loader, do_early_stopping, stopping_criteria)
+            epochs.append(epochs_trained)
 
             # Evaluate
             acc_table[train_name] = OrderedDict()
@@ -183,7 +186,7 @@ def run(args, do_early_stopping, stopping_criteria):
                 auroc_table[val_name][train_name] = auroc
                 auprc_table[val_name][train_name] = auprc
 
-    return acc_table, auroc_table, auprc_table, task_names
+    return acc_table, auroc_table, auprc_table, task_names, epochs
 
 
 def get_args(argv):
@@ -236,8 +239,8 @@ if __name__ == '__main__':
     args = get_args(sys.argv[1:])
     reg_coef_list = args.reg_coef
     avg_final_acc = {}
-    do_early_stopping = False
-    stopping_criteria = 'auroc'  # possibilities: 'acc', 'auroc', 'auprc'
+    do_early_stopping = True
+    stopping_criteria = 'acc'  # possibilities: 'acc', 'auroc', 'auprc'
 
     # The for loops over hyper-paramerters or repeats
     for reg_coef in reg_coef_list:
@@ -248,6 +251,7 @@ if __name__ == '__main__':
         avg_auroc_history_all_repeats = []
         avg_auprc_history_all_repeats = []
         times_per_run = []
+        epochs_per_run = []
 
         for r in range(args.repeat):
             print('- - Run %d - -' % (r + 1))
@@ -255,10 +259,12 @@ if __name__ == '__main__':
             start_time = time.time()
 
             # Run the experiment
-            acc_table, auroc_table, auprc_table, task_names = run(args, do_early_stopping, stopping_criteria)
+            acc_table, auroc_table, auprc_table, task_names, epochs = run(args, do_early_stopping, stopping_criteria)
             print('Accuracy dict:', acc_table)
             print('AUROC dict:', auroc_table)
             print('AUPRC dict:', auprc_table)
+
+            epochs_per_run.append(epochs)
 
             # Calculate average performance across tasks
             # Customize this part for a different performance metric
@@ -301,6 +307,7 @@ if __name__ == '__main__':
             times_per_run.append(time_elapsed)
             print('Time elapsed for this run:', round(time_elapsed, 2), 's')
 
+        print('\nEpochs per run: ', epochs_per_run)
         print('Times per run: ', times_per_run)
         print('Runs: %d,  Average time per run: %.2f +/ %.2f s' %
               (args.repeat, np.mean(np.array(times_per_run)), np.std(np.array(times_per_run))))

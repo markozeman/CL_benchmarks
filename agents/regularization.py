@@ -33,7 +33,7 @@ class L2(NormalNN):
         self.log('#reg_term:', len(self.regularization_terms))
 
         # 1.Learn the parameters for current task
-        super(L2, self).learn_batch(train_loader, val_loader, do_early_stopping, stopping_criteria)
+        last_epoch = super(L2, self).learn_batch(train_loader, val_loader, do_early_stopping, stopping_criteria)
 
         # 2.Backup the weight of current task
         task_param = {}
@@ -51,6 +51,8 @@ class L2(NormalNN):
         else:
             # Use a new slot to store the task-specific information
             self.regularization_terms[self.task_count] = {'importance':importance, 'task_param':task_param}
+
+        return last_epoch
 
     def criterion(self, inputs, targets, tasks, regularization=True, **kwargs):
         loss = super(L2, self).criterion(inputs, targets, tasks, **kwargs)

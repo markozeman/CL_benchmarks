@@ -176,7 +176,7 @@ class NormalNN(nn.Module):
         # num_epochs = self.config['schedule'][-1]  # todo
         num_epochs = 10
 
-        for epoch in range(num_epochs):
+        for epoch in range(1, num_epochs+1):
             data_timer = Timer()
             batch_timer = Timer()
             batch_time = AverageMeter()
@@ -250,7 +250,7 @@ class NormalNN(nn.Module):
                     else:
                         print('Early stopped - %s got worse in this epoch.' % stopping_criteria)
                         break
-
+        return epoch
 
     def learn_stream(self, data, label):
         assert False,'No implementation yet'

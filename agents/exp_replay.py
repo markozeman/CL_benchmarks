@@ -32,7 +32,7 @@ class Naive_Rehearsal(NormalNN):
                                                         num_workers=train_loader.num_workers)
 
         # 2.Update model as normal
-        super(Naive_Rehearsal, self).learn_batch(new_train_loader, val_loader, do_early_stopping, stopping_criteria)
+        last_epoch = super(Naive_Rehearsal, self).learn_batch(new_train_loader, val_loader, do_early_stopping, stopping_criteria)
 
         # 3.Randomly decide the images to stay in the memory
         self.task_count += 1
@@ -45,6 +45,8 @@ class Naive_Rehearsal(NormalNN):
         # (c) Randomly choose some samples from new task and save them to the memory
         randind = torch.randperm(len(train_loader.dataset))[:num_sample_per_task]  # randomly sample some data
         self.task_memory[self.task_count] = Storage(train_loader.dataset, randind)
+
+        return last_epoch
 
 
 class Naive_Rehearsal_SI(Naive_Rehearsal, SI):
@@ -146,7 +148,7 @@ class GEM(Naive_Rehearsal):
     def learn_batch(self, train_loader, val_loader=None, do_early_stopping=False, stopping_criteria='acc'):
 
         # Update model as normal
-        super(GEM, self).learn_batch(train_loader, val_loader, do_early_stopping, stopping_criteria)
+        last_epoch = super(GEM, self).learn_batch(train_loader, val_loader, do_early_stopping, stopping_criteria)
 
         # Cache the data for faster processing
         for t, mem in self.task_memory.items():
@@ -159,6 +161,8 @@ class GEM(Naive_Rehearsal):
                     mem_input = mem_input.cuda()
                     mem_target = mem_target.cuda()
             self.task_mem_cache[t] = {'data':mem_input,'target':mem_target,'task':mem_task}
+
+        return last_epoch
 
     def update_model(self, inputs, targets, tasks):
 
