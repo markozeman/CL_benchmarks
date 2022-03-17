@@ -202,10 +202,10 @@ def get_args(argv):
     parser.add_argument('--optimizer', type=str, default='SGD', help="SGD|Adam|RMSprop|amsgrad|Adadelta|Adagrad|Adamax ...")
     parser.add_argument('--dataroot', type=str, default='data', help="The root folder of dataset or downloaded data")
     parser.add_argument('--dataset', type=str, default='MNIST', help="MNIST(default)|CIFAR10|CIFAR100")
-    parser.add_argument('--n_permutation', type=int, default=0, help="Enable permuted tests when >0")
+    parser.add_argument('--n_permutation', type=int, default=10, help="Enable permuted tests when >0")
     parser.add_argument('--first_split_size', type=int, default=2)
     parser.add_argument('--other_split_size', type=int, default=2)
-    parser.add_argument('--no_class_remap', dest='no_class_remap', default=False, action='store_true',
+    parser.add_argument('--no_class_remap', dest='no_class_remap', default=True, action='store_true',
                         help="Avoid the dataset with a subset of classes doing the remapping. Ex: [2,5,6 ...] -> [0,1,2 ...]")
     parser.add_argument('--train_aug', dest='train_aug', default=False, action='store_true',
                         help="Allow data augmentation during training")
@@ -214,8 +214,8 @@ def get_args(argv):
     parser.add_argument('--rand_split_order', dest='rand_split_order', default=False, action='store_true',
                         help="Randomize the order of splits")
     parser.add_argument('--workers', type=int, default=3, help="#Thread for dataloader")
-    parser.add_argument('--batch_size', type=int, default=100)
-    parser.add_argument('--lr', type=float, default=0.01, help="Learning rate")
+    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--lr', type=float, default=0.001, help="Learning rate")
     parser.add_argument('--momentum', type=float, default=0)
     parser.add_argument('--weight_decay', type=float, default=0)
     parser.add_argument('--schedule', nargs="+", type=int, default=[2],
@@ -240,7 +240,22 @@ if __name__ == '__main__':
     reg_coef_list = args.reg_coef
     avg_final_acc = {}
     do_early_stopping = True
-    stopping_criteria = 'acc'  # possibilities: 'acc', 'auroc', 'auprc'
+    stopping_criteria = 'auroc'  # possibilities: 'acc', 'auroc', 'auprc'
+    args.repeat = 2   # number of runs
+    args.agent_name = 'GEM_510'   # continual learning method; options: ['EWC_mnist', 'EWC_online_mnist', 'SI', 'MAS', 'GEM_510']
+
+    args.force_out_dim = 2  # number of output neurons / number of classes
+    args.model_name = 'myTransformer'  # to use Transformer model
+    args.agent_type = 'regularization' if args.agent_name == 'MAS' or args.agent_name == 'SI' else 'customization'
+    args.optimizer = 'SGD' if args.agent_name.startswith('GEM') else 'Adam'
+    best_reg_coefs = {      # based on coefficient search
+        'EWC_mnist': 5000,
+        'EWC_online_mnist': 5000,
+        'SI': 2,
+        'MAS': 50,
+        'GEM_510': 0.005
+    }
+    args.reg_coef = best_reg_coefs[args.agent_name]
 
     # The for loops over hyper-paramerters or repeats
     for reg_coef in reg_coef_list:
@@ -311,6 +326,8 @@ if __name__ == '__main__':
         print('Times per run: ', times_per_run)
         print('Runs: %d,  Average time per run: %.2f +/ %.2f s' %
               (args.repeat, np.mean(np.array(times_per_run)), np.std(np.array(times_per_run))))
+        print('Runs: %d,  Average #epochs for all tasks: %.2f +/ %.2f' %
+              (args.repeat, np.mean(np.array([sum(l) for l in epochs_per_run])), np.std(np.array([sum(l) for l in epochs_per_run]))))
 
         avg_acc_history_all_repeats = np.array(avg_acc_history_all_repeats)
         avg_auroc_history_all_repeats = np.array(avg_auroc_history_all_repeats)
