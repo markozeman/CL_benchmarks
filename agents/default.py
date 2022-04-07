@@ -174,7 +174,7 @@ class NormalNN(nn.Module):
             best_prev_value = 0
 
         # num_epochs = self.config['schedule'][-1]  # todo
-        num_epochs = 10
+        num_epochs = 50
 
         for epoch in range(1, num_epochs+1):
             data_timer = Timer()

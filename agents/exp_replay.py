@@ -34,7 +34,7 @@ class Naive_Rehearsal(NormalNN):
         # 2.Update model as normal
         last_epoch = super(Naive_Rehearsal, self).learn_batch(new_train_loader, val_loader, do_early_stopping, stopping_criteria)
 
-        # 3.Randomly decide the images to stay in the memory
+        # 3.Randomly decide what stays in the memory
         self.task_count += 1
         # (a) Decide the number of samples for being saved
         num_sample_per_task = self.memory_size // self.task_count

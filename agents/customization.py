@@ -165,6 +165,30 @@ def GEM_510(agent_config):
     return agent
 
 
+def GEM_60(agent_config):
+    agent = GEM(agent_config)
+    agent.memory_size = 60
+    return agent
+
+
+def GEM_30(agent_config):
+    agent = GEM(agent_config)
+    agent.memory_size = 30
+    return agent
+
+
+def GEM_15(agent_config):
+    agent = GEM(agent_config)
+    agent.memory_size = 15
+    return agent
+
+
+def GEM_12(agent_config):
+    agent = GEM(agent_config)
+    agent.memory_size = 12
+    return agent
+
+
 def GEM_400(agent_config):
     agent = GEM(agent_config)
     agent.memory_size = 400

@@ -51,7 +51,7 @@ def get_data(s):
     return X, y, mask
 
 
-def run(args, do_early_stopping, stopping_criteria):
+def run(args, do_early_stopping, stopping_criteria, task_names):
     if not os.path.exists('outputs'):
         os.mkdir('outputs')
 
@@ -71,7 +71,7 @@ def run(args, do_early_stopping, stopping_criteria):
                                                                           remap_class=not args.no_class_remap)
     '''
 
-    task_names = ['HS', 'SA', 'S', 'SA_2', 'C', 'HD']
+    # task_names = ['HS', 'SA', 'S', 'SA_2', 'C', 'HD']
     task_output_space = {name: 2 for name in task_names}
     test_all_tasks = []
 
@@ -88,10 +88,10 @@ def run(args, do_early_stopping, stopping_criteria):
 
     # Decide split ordering
     # task_names = sorted(list(task_output_space.keys()), key=int)    # todo
-    print('Task order:',task_names)
-    if args.rand_split_order:
-        shuffle(task_names)
-        print('Shuffled task order:', task_names)
+    # print('Task order:',task_names)
+    # if args.rand_split_order:
+    #     shuffle(task_names)
+    #     print('Shuffled task order:', task_names)
 
     acc_table = OrderedDict()
     auroc_table = OrderedDict()
@@ -132,7 +132,7 @@ def run(args, do_early_stopping, stopping_criteria):
             index_test = round(0.9 * len(permutation))
 
             # X_train, y_train, mask_train = X[:index_val, :, :].to("cuda:0"), y[:index_val].to("cuda:0"), mask[:index_val,:].to("cuda:0")  # train data to GPU
-            X_train, y_train, mask_train = X[:index_val, :, :], y[:index_val], mask[:index_val,:]   # todo
+            X_train, y_train, mask_train = X[:index_val, :, :], y[:index_val], mask[:index_val,:]
             X_val, y_val, mask_val = X[index_val:index_test, :, :], y[index_val:index_test], mask[index_val:index_test,:]
             X_test, y_test, mask_test = X[index_test:, :, :], y[index_test:], mask[index_test:, :]
 
@@ -242,20 +242,24 @@ if __name__ == '__main__':
     do_early_stopping = True
     stopping_criteria = 'auroc'  # possibilities: 'acc', 'auroc', 'auprc'
     args.repeat = 2   # number of runs
-    args.agent_name = 'GEM_510'   # continual learning method; options: ['EWC_mnist', 'EWC_online_mnist', 'SI', 'MAS', 'GEM_510']
+    args.agent_name = 'MAS'   # continual learning method; options: ['EWC_mnist', 'EWC_online_mnist', 'SI', 'MAS', 'GEM_x']
 
     args.force_out_dim = 2  # number of output neurons / number of classes
     args.model_name = 'myTransformer'  # to use Transformer model
     args.agent_type = 'regularization' if args.agent_name == 'MAS' or args.agent_name == 'SI' else 'customization'
     args.optimizer = 'SGD' if args.agent_name.startswith('GEM') else 'Adam'
     best_reg_coefs = {      # based on coefficient search
-        'EWC_mnist': 5000,
-        'EWC_online_mnist': 5000,
+        'EWC_mnist': 5000,  # _mnist does not mean we run it on MNIST (used for backward compatibility)
+        'EWC_online_mnist': 5000,   # _mnist does not mean we run it on MNIST (used for backward compatibility)
         'SI': 2,
         'MAS': 50,
-        'GEM_510': 0.005
+        'GEM_510': 0.005,
+        'GEM_60': 0.005,
+        'GEM_30': 0.005,
+        'GEM_15': 0.005,
+        'GEM_12': 0.005
     }
-    args.reg_coef = best_reg_coefs[args.agent_name]
+    reg_coef_list = [best_reg_coefs[args.agent_name]]
 
     # The for loops over hyper-paramerters or repeats
     for reg_coef in reg_coef_list:
@@ -268,13 +272,19 @@ if __name__ == '__main__':
         times_per_run = []
         epochs_per_run = []
 
+        runs_task_names = [['HS', 'SA', 'S', 'SA_2', 'C', 'HD'],
+                           ['C', 'HD', 'SA', 'HS', 'SA_2', 'S'],
+                           ['SA', 'S', 'HS', 'SA_2', 'HD', 'C'],
+                           ['HD', 'SA_2', 'SA', 'C', 'S', 'HS'],
+                           ['SA', 'HS', 'C', 'SA_2', 'HD', 'S']]
+
         for r in range(args.repeat):
             print('- - Run %d - -' % (r + 1))
 
             start_time = time.time()
 
             # Run the experiment
-            acc_table, auroc_table, auprc_table, task_names, epochs = run(args, do_early_stopping, stopping_criteria)
+            acc_table, auroc_table, auprc_table, task_names, epochs = run(args, do_early_stopping, stopping_criteria, runs_task_names[r])
             print('Accuracy dict:', acc_table)
             print('AUROC dict:', auroc_table)
             print('AUPRC dict:', auprc_table)
@@ -324,9 +334,9 @@ if __name__ == '__main__':
 
         print('\nEpochs per run: ', epochs_per_run)
         print('Times per run: ', times_per_run)
-        print('Runs: %d,  Average time per run: %.2f +/ %.2f s' %
-              (args.repeat, np.mean(np.array(times_per_run)), np.std(np.array(times_per_run))))
-        print('Runs: %d,  Average #epochs for all tasks: %.2f +/ %.2f' %
+        print('Runs: %d,  Average time per run: %.2f +/- %.2f s, %.1f +/- %.1f min' %
+              (args.repeat, np.mean(np.array(times_per_run)), np.std(np.array(times_per_run)), np.mean(np.array(times_per_run)) / 60, np.std(np.array(times_per_run)) / 60))
+        print('Runs: %d,  Average #epochs for all tasks: %.2f +/- %.2f' %
               (args.repeat, np.mean(np.array([sum(l) for l in epochs_per_run])), np.std(np.array([sum(l) for l in epochs_per_run]))))
 
         avg_acc_history_all_repeats = np.array(avg_acc_history_all_repeats)
