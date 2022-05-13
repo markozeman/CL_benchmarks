@@ -51,7 +51,7 @@ def get_data(s):
     return X, y, mask
 
 
-def run(args, do_early_stopping, stopping_criteria, task_names):
+def run(args, do_early_stopping, stopping_criteria, task_names, times_per_task=None, previous_time=None):
     if not os.path.exists('outputs'):
         os.mkdir('outputs')
 
@@ -138,8 +138,8 @@ def run(args, do_early_stopping, stopping_criteria, task_names):
 
             # tasks4compatibility = np.array(tuple([str(i + 1)] * args.batch_size))
             train_dataset = TensorDataset(X_train, y_train, mask_train)     # mask not used
-            val_dataset = TensorDataset(X_val, y_val, mask_val)
-            test_dataset = TensorDataset(X_test, y_test, mask_test)
+            val_dataset = TensorDataset(X_val, y_val, mask_val)             # mask not used
+            test_dataset = TensorDataset(X_test, y_test, mask_test)         # mask not used
 
             train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size)
             val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size)
@@ -186,7 +186,12 @@ def run(args, do_early_stopping, stopping_criteria, task_names):
                 auroc_table[val_name][train_name] = auroc
                 auprc_table[val_name][train_name] = auprc
 
-    return acc_table, auroc_table, auprc_table, task_names, epochs
+            if times_per_task is not None:
+                print('Elapsed time so far: %.2f s, %.2f min' % (time.time() - previous_time, (time.time() - previous_time) / 60))
+                times_per_task[r, i] = time.time() - previous_time  # saved in seconds
+                previous_time = time.time()
+
+    return acc_table, auroc_table, auprc_table, task_names, epochs, times_per_task
 
 
 def get_args(argv):
@@ -254,6 +259,7 @@ if __name__ == '__main__':
         'SI': 2,
         'MAS': 50,
         'GEM_510': 0.005,
+        'GEM_300': 0.005,
         'GEM_60': 0.005,
         'GEM_30': 0.005,
         'GEM_15': 0.005,
@@ -270,6 +276,7 @@ if __name__ == '__main__':
         avg_auroc_history_all_repeats = []
         avg_auprc_history_all_repeats = []
         times_per_run = []
+        times_per_task = np.zeros((args.repeat, 6))
         epochs_per_run = []
 
         runs_task_names = [['HS', 'SA', 'S', 'SA_2', 'C', 'HD'],
@@ -282,9 +289,11 @@ if __name__ == '__main__':
             print('- - Run %d - -' % (r + 1))
 
             start_time = time.time()
+            previous_time = start_time
 
             # Run the experiment
-            acc_table, auroc_table, auprc_table, task_names, epochs = run(args, do_early_stopping, stopping_criteria, runs_task_names[r])
+            acc_table, auroc_table, auprc_table, task_names, epochs, times_per_task = \
+                run(args, do_early_stopping, stopping_criteria, runs_task_names[r], times_per_task, previous_time)
             print('Accuracy dict:', acc_table)
             print('AUROC dict:', auroc_table)
             print('AUPRC dict:', auprc_table)
@@ -359,6 +368,17 @@ if __name__ == '__main__':
     mean_auroc, std_auroc = np.mean(avg_auroc_history_all_repeats, axis=0), np.std(avg_auroc_history_all_repeats, axis=0)
     mean_auprc, std_auprc = np.mean(avg_auprc_history_all_repeats, axis=0), np.std(avg_auprc_history_all_repeats, axis=0)
 
+    mean_time_per_task, std_time_per_task = np.mean(times_per_task, axis=0), np.std(times_per_task, axis=0)
+
+    print('\nMeans for each task separately:')
+    for t in range(len(runs_task_names[0])):
+        print('------------------------------------------')
+        print('Mean time for task %d: %.2f +/- %.2f s,  %.2f +/- %.2f min' % (t+1, mean_time_per_task[t], std_time_per_task[t], mean_time_per_task[t] / 60, std_time_per_task[t] / 60))
+        print('Mean time until task %d: %.2f s,  %.2f min' % (t+1, sum(mean_time_per_task[:t + 1]), sum(mean_time_per_task[:t + 1]) / 60))
+        print('Task %d - Accuracy = %.1f +/- %.1f' % (t + 1, mean_acc[t], std_acc[t]))
+        print('Task %d - AUROC    = %.1f +/- %.1f' % (t + 1, mean_auroc[t], std_auroc[t]))
+        print('Task %d - AUPRC    = %.1f +/- %.1f' % (t + 1, mean_auprc[t], std_auprc[t]))
+
     end_performance = {i: {'acc': 0, 'auroc': 0, 'auprc': 0, 'std_acc': 0, 'std_auroc': 0, 'std_auprc': 0}
                        for i in range(num_tasks)}
 
@@ -371,7 +391,7 @@ if __name__ == '__main__':
         end_performance[i]['std_auprc'] = std_auprc[i]
 
     metrics = ['acc', 'auroc', 'auprc']  # possibilities: 'acc', 'auroc', 'auprc'
-    print('Metrics at the end of each task training:\n', end_performance)
+    print('\n\nMetrics at the end of each task training:\n', end_performance)
     plot_multiple_histograms(end_performance, num_tasks, metrics,
                              '#runs: %d, average task results, %s method, early stopping=%s (%s)' %
                              (args.repeat, args.agent_name, str(do_early_stopping), stopping_criteria),
